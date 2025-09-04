@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CO₂ & TVOC Monitoring</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
+  <style>
+body { 
+  font-family: 'Segoe UI', Tahoma, sans-serif;
+  background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  min-height: 100vh;
+  margin: 0;
+  padding: 20px;
+}
+
+.title {
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+}
+
+.title > img {
+  width: 40%;
+  height: auto;
+  margin-bottom: -175px;
+  margin-top: -165px;
+}
+
+h1 {
+  margin-bottom: 10px;
+  text-align: center;
+  font-size: 1.8rem;
+}
+
+#co2Circle {
+  color: rgb(54, 162, 235);
+}
+
+#tvocCircle {
+  color: rgb(255, 99, 132);
+}
+
+.circle-container {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 15px;
+  margin-top: 20px;
+}
+
+.circle {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(8px);
+  border-radius: 50%;
+  padding: 20px;
+  width: 180px;
+  height: 180px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.circle:hover {
+  transform: translateY(-10px);
+  box-shadow: 0 12px 25px rgba(0,0,0,0.5);
+}
+
+.circle span {
+  font-size: 1.5rem;
+  font-weight: bold;
+  position: relative;
+  z-index: 1;
+}
+
+.circle::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  transform: translate(-50%, -50%) rotate(-90deg);
+  background: conic-gradient(
+    var(--progress-color, #00ffcc) var(--progress, 0deg),
+    transparent 0deg
+  );
+  -webkit-mask: radial-gradient(circle, transparent 70%, black 71%);
+  mask: radial-gradient(circle, transparent 58%, black 73%);
+  z-index: 0;
+}
+
+.circle::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 85%;
+  height: 85%;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(8px);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1;
+}
+
+#chartContainer {
+  width: 100%;
+  max-width: 800px;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 15px;
+  border-radius: 20px;
+  margin-top: 30px;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+}
+
+#chartContainer canvas {
+  width: 100% !important;
+  height: 100% !important;
+  display: flex;
+}
+
+#reset {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 10px 15px;
+  background: linear-gradient(135deg, #0f2027,#2c5364, #203a43);
+  color: #fff;
+  font-size: 1rem;
+  border-radius: 8px;
+  cursor: pointer;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+  transition: background 0.3s ease, transform 0.2s ease;
+  z-index: 1000;
+}
+#reset:hover {
+  background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+  transform: scale(1.05);
+}
+#reset img {
+  width: 20px;
+  height: 20px;
+}
+
+#wifiStatus {
+  position: absolute;
+  top: 15px;
+  right: 20px;
+  background: rgba(255,255,255,0.1);
+  padding: 8px 15px;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  color: lightgreen;
+  z-index: 2000;
+}
+
+@media (max-width: 850px) {
+  .title > img {
+    width: 35%;
+    margin-bottom: -100px;
+    margin-top: -40px;
+  }
+
+  h1 {
+    font-size: 1rem;
+    margin-top: 20px;
+  }
+
+  .circle-container {
+    flex-direction: row;
+    align-items: center;
+    gap: 15px;
+  }
+
+  .circle {
+    display: flex;
+    width: 150px;
+    height: 150px;
+    padding: 15px;
+    border-radius: 50%;
+  }
+
+  .circle span {
+    font-size: 1.2rem;
+  }
+
+  #chartContainer {
+    width: 80%;
+    height: 300px;
+    margin-top: 20px;
+    padding: 10px;
+  }
+}
+
+@media (max-width: 680px) {
+  #reset {
+    font-size: 0.5rem;
+    padding: 4px 3px;
+    top: 21px;
+    left: 12px;
+  }
+  .title > img {
+    width: 65%;
+    margin-bottom: -95px;
+    margin-top: -95px;
+  }
+
+  h1 {
+    font-size: 1rem;
+    margin-top: 20px;
+  }
+
+  .circle-container {
+    flex-direction: row;
+    align-items: center;
+    gap: 15px;
+  }
+
+  .circle {
+    display: flex;
+    width: 150px;
+    height: 150px;
+    padding: 15px;
+    border-radius: 50%;
+  }
+
+  .circle span {
+    font-size: 1.2rem;
+  }
+
+  #chartContainer {
+    width: 100%;
+    height: 300px;
+    margin-top: 20px;
+    padding: 10px;
+  }
+}
+
+@media (max-width: 480px) {
+  h1 {
+    font-size: 0.8rem;
+  }
+
+  .circle {
+    width: 130px;
+    height: 130px;
+    padding: 10px;
+  }
+
+  .circle span {
+    font-size: 1rem;
+  }
+
+  #chartContainer {
+    padding: 8px;
+  }
+}
+  </style>  
+</head>
+<body>
+  <div id="wifiStatus">Wi-Fi: Memeriksa...</div>
+  <div class="title">
+    <img src="PKM25.png" alt="PKM2025" width="100%" />
+    <h1>DASHBOARD AGRINOSE<br> CO₂ & VOC </h1>
+  </div>
+  <div class="circle-container">
+    <div class="circle" id="co2Circle">CO₂  : <span id="co2Value">0 ppm</span></div>
+    <div class="circle" id="tvocCircle">VOC : <span id="tvocValue">0 ppb</span></div>
+  </div>
+  <h1>GRAFIK MONITORING <br>CO₂ & VOC</h1>
+  <div id="chartContainer">
+    <canvas id="gasChart"></canvas>
+  </div>
+  <h2 id="predictionStatus" style="margin-top:20px; text-align:center;">Prediksi: Memuat model...</h2>
+  <div id="reset"><img src="reset.png" width="25px" height="25px"><span>Reset WiFi</span></div>
+  <h1>PKM-KC 2025 UNIVERSITAS HALU OLEO <br> TIM AGRINOSE</h1>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
+  import { getDatabase, ref, onValue, set} from "https://www.gstatic.com/firebasejs/10.12.4/firebase-database.js";
+
+  const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "agrinose-pkm.firebaseapp.com",
+      databaseURL: "https://agrinose-pkm-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "agrinose-pkm",
+      storageBucket: "agrinose-pkm.firebasestorage.app",
+      messagingSenderId: "376089706895",
+      appId: "1:376089706895:web:cdc553a2820bd992c44bfa",
+      measurementId: "G-LFFGW7XLJH"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+
+  const co2Value = document.getElementById("co2Value");
+  const tvocValue = document.getElementById("tvocValue");
+  const predEl = document.getElementById("predictionStatus");
+
+ const ctx = document.getElementById('gasChart').getContext('2d'); 
+ const gasChart = new Chart(ctx, 
+    { type: 'bar', 
+    data: 
+      { labels: [], 
+          datasets: [ 
+            { 
+              label: 'CO₂ (ppm)', 
+              data: [450, 600, 520], 
+              backgroundColor: 'rgba(54, 162, 235, 0.7)' 
+            }, 
+            { 
+              label: 'VOC (ppb)', 
+              data: [120, 200, 180], 
+              backgroundColor: 'rgba(255, 99, 132, 0.7)' 
+            } 
+          ] 
+        }, 
+        options: 
+        { responsive: true, 
+          maintainAspectRatio: false, 
+          scales: { 
+            x: 
+              { title: 
+                { display: true, 
+                  text: 'Waktu', 
+                  color: '#fff', 
+                  font: { size: 14 } 
+                }, 
+                ticks: { color: '#fff' } 
+              }, 
+            y: 
+            { beginAtZero: true, 
+              title: 
+              { display: true, 
+                text: 'Gas (ppm/ppb)', 
+                color: '#fff', font: { size: 14 } 
+              }, 
+              ticks: { color: '#fff' } 
+            } 
+          }, 
+          plugins: { 
+            legend: { 
+              labels: { 
+                color: '#fff', 
+                font: { size: 14 } 
+              } 
+            } 
+          } 
+        } 
+      });
+
+  function formatCO2(val) { return val + " ppm"; }
+  function formatTVOC(val) { return val + " ppb"; }
+
+  const readingsRef = ref(db, "/sensor_data");
+
+  function setCircleProgress(circleId, value, maxValue, color) {
+    const circle = document.getElementById(circleId);
+    const percent = Math.min(value / maxValue, 1);
+    const deg = 360 * percent;
+    circle.style.setProperty("--progress-color", color);
+    circle.style.setProperty("--progress", deg + "deg");
+  }
+
+  function resetUI() {
+    co2Value.textContent = "0 ppm";
+    tvocValue.textContent = "0 ppb";
+    gasChart.data.labels = [];
+    gasChart.data.datasets[0].data = [];
+    gasChart.data.datasets[1].data = [];
+    gasChart.update();
+    setCircleProgress("co2Circle", 0, 2000, "rgb(54,162,235)");
+    setCircleProgress("tvocCircle", 0, 1000, "rgb(255,99,132)");
+  }
+
+  let disconnectTimeout;
+  function startDisconnectTimer() {
+    clearTimeout(disconnectTimeout);
+    disconnectTimeout = setTimeout(() => 
+    { 
+      resetUI(); 
+      wifiStatusEl.textContent = "Wi-Fi: Offline";
+      wifiStatusEl.style.color = "red";
+    }, 5000);
+    const wifiStatusEl = document.getElementById("wifiStatus");
+    const wifiRef = ref(db, "/wifi_status");
+
+    onValue(wifiRef, (snapshot) => {
+    const status = snapshot.val();
+    wifiStatusEl.textContent = "Wi-Fi: " + status;
+    wifiStatusEl.style.color = "lightgreen";
+    });
+  }
+
+  const MODEL_URL = './model/voc_classifier.onnx';
+  const CLASS_NAMES = ["Normal", "Hama"];
+  let session = null;
+
+  (async () => {
+    try {
+      session = await ort.InferenceSession.create(MODEL_URL, { executionProviders: ['wasm'] });
+      predEl.textContent = "Prediksi: Model siap";
+    } catch (e) {
+      predEl.textContent = "Gagal memuat model ONNX";
+      console.error(e);
+    }
+  })();
+
+  async function predict(sample) {
+    if (!session) return null;
+    const inputArr = new Float32Array([
+      sample.temperature || 0,
+      sample.humidity || 0,
+      sample.pressure || 0,
+      sample.gas_resistance || 0,
+      sample.eCO2 || 0,
+      sample.tVOC || 0
+    ]);
+    const tensor = new ort.Tensor('float32', inputArr, [1, inputArr.length]);
+    const feeds = {};
+    feeds[session.inputNames[0]] = tensor;
+    const results = await session.run(feeds);
+    const out = results[session.outputNames[0]].data;
+    if (out.length > 1) {
+      let maxIndex = 0;
+      for (let i = 1; i < out.length; i++) {
+        if (out[i] > out[maxIndex]) maxIndex = i;
+      }
+      return CLASS_NAMES[maxIndex] || `Class ${maxIndex}`;
+    } else {
+      return out[0] >= 0.5 ? CLASS_NAMES[1] : CLASS_NAMES[0];
+    }
+  }
+
+  onValue(readingsRef, (snapshot) => {
+    const v = snapshot.val() || {};
+    const co2 = v.eCO2 || 0;
+    const tvoc = v.tVOC || 0;
+    const timeLabel = new Date().toLocaleTimeString();
+
+    co2Value.textContent = formatCO2(co2);
+    tvocValue.textContent = formatTVOC(tvoc);
+
+    setCircleProgress("co2Circle", co2, 2000, "rgb(54,162,235)");
+    setCircleProgress("tvocCircle", tvoc, 1000, "rgb(255,99,132)");
+
+    if (gasChart.data.labels.length >= 20) {
+      gasChart.data.labels.shift();
+      gasChart.data.datasets[0].data.shift();
+      gasChart.data.datasets[1].data.shift();
+    }
+    gasChart.data.labels.push(timeLabel);
+    gasChart.data.datasets[0].data.push(co2);
+    gasChart.data.datasets[1].data.push(tvoc);
+    gasChart.update();
+
+    const sample = {
+      temperature: v.temperature || 0,
+      humidity: v.humidity || 0,
+      pressure: v.pressure || 0,
+      gas_resistance: v.gas || 0,
+      eCO2: co2,
+      tVOC: tvoc
+    };
+    predict(sample).then(label => {
+      if (label) predEl.textContent = "Prediksi: " + label;
+    });
+
+    startDisconnectTimer();
+  });
+
+  startDisconnectTimer();
+
+    document.getElementById("reset").addEventListener("click", () => {
+    if (confirm("Yakin reset Wi-Fi ESP32?")) {
+      set(ref(db, "/resetWifi"), true)
+        .then(() => alert("Perintah reset Wi-Fi terkirim"))
+        .catch(err => alert("Gagal: " + err));
+    }
+  });
+</script>
+</body>
+</html>
